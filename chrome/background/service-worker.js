@@ -85,6 +85,26 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   }
 });
 
+// ─── Relay タブ監視（ページ離脱で自動解除） ────────────────
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const relayTabId = await getRelayTabId();
+  if (tabId === relayTabId) {
+    console.log('[ClawLink] Relayタブが閉じられたため自動解除');
+    await stopRelay();
+  }
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  // URL変化（ナビゲーション）のみ対象
+  if (!changeInfo.url) return;
+  const relayTabId = await getRelayTabId();
+  if (tabId === relayTabId) {
+    console.log('[ClawLink] Relayタブがナビゲートしたため自動解除:', changeInfo.url);
+    await stopRelay();
+  }
+});
+
 // ─── メッセージ処理 ────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

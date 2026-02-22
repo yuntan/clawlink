@@ -29,10 +29,17 @@ async function sendToGateway(gatewayUrl, gatewayToken, text) {
   });
 
   const res = await fetch(url, { method: 'POST', headers, body });
+  const json = await res.json().catch(() => null);
+
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const msg = json?.error?.message ?? res.statusText;
+    throw new Error(`HTTP ${res.status}: ${msg}`);
   }
-  return res;
+  // Gateway は { ok: true, result } を返す
+  if (json && json.ok === false) {
+    throw new Error(json.error?.message ?? 'Gateway returned ok:false');
+  }
+  return json;
 }
 
 /**

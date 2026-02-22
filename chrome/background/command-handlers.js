@@ -64,6 +64,10 @@ async function tabsActiveContent() {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!tab) throw new Error('アクティブタブが見つかりません');
   if (!tab.id) throw new Error('タブIDが取得できません');
+
+  // 許可チェック: Relay ONにしたタブのみ取得可
+  await assertRelayTabPermission(tab.id);
+
   // chrome:// 等は scripting 不可
   if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
     throw new Error(`chrome内部ページはコンテンツ取得不可: ${tab.url}`);
@@ -93,6 +97,12 @@ function extractPageContent() {
 // ─── tabs.screenshot ─────────────────────────────────────
 
 async function tabsScreenshot(args) {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (!tab?.id) throw new Error('アクティブタブが見つかりません');
+
+  // 許可チェック: Relay ONにしたタブのみ撮影可
+  await assertRelayTabPermission(tab.id);
+
   const format = args?.format ?? 'jpeg';
   const quality = args?.quality ?? 80;
 
@@ -101,4 +111,19 @@ async function tabsScreenshot(args) {
     dataUrl, // "data:image/jpeg;base64,..."
     format,
   };
+}
+
+// ─── 許可チェック ─────────────────────────────────────────
+
+/**
+ * Relay ONにしたタブと現在のアクティブタブが一致するか確認する
+ * @param {number} activeTabId
+ */
+async function assertRelayTabPermission(activeTabId) {
+  const relayTabId = await getRelayTabId();
+  if (relayTabId === null || activeTabId !== relayTabId) {
+    throw new Error(
+      `このタブはRelayモードで許可されていません (relayTabId=${relayTabId}, activeTabId=${activeTabId})`
+    );
+  }
 }

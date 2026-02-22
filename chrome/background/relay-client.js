@@ -19,7 +19,11 @@ async function startRelay(gatewayUrl, gatewayToken) {
     gatewayToken: gatewayToken ?? '',
   });
 
-  await chrome.storage.local.set({ relayActive: true });
+  // Relay許可タブを記録（現在のアクティブタブ）
+  const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const relayTabId = activeTab?.id ?? null;
+
+  await chrome.storage.local.set({ relayActive: true, relayTabId });
   await setBadge(true);
 }
 
@@ -37,7 +41,7 @@ async function stopRelay() {
     await chrome.offscreen.closeDocument();
   }
 
-  await chrome.storage.local.set({ relayActive: false });
+  await chrome.storage.local.set({ relayActive: false, relayTabId: null });
   await setBadge(false);
 }
 
@@ -46,6 +50,11 @@ async function stopRelay() {
 async function isRelayActive() {
   const { relayActive } = await chrome.storage.local.get('relayActive');
   return !!relayActive;
+}
+
+async function getRelayTabId() {
+  const { relayTabId } = await chrome.storage.local.get('relayTabId');
+  return relayTabId ?? null;
 }
 
 // ─── offscreen ドキュメント管理 ───────────────────────────
