@@ -45,18 +45,50 @@
 
 ## Apple Watch連携のアイデア
 
-### 方針：Watchだけで音声会話を完結させる
+### 方針：UIはWatch完結、技術経路は2パターンを自動切替
 
-iPhone経由なしで Watch ↔ Gateway ↔ AI の往復を完結させる。
-Apple Watch（セルラーモデルまたはWi-Fi環境）はURLSessionで直接HTTP/WSに接続できる。
+ユーザーはWatchだけで操作が完結する。技術的な経路はどちらでもよい。
+**Yutoが使っているのはWi-FiモデルのApple Watch。**
+
+#### 接続経路の比較
+
+| | Option A: iPhone relay | Option B: Wi-Fi直接 |
+|--|------------------------|---------------------|
+| 経路 | Watch → WatchConnectivity → iPhone ClawLink → Gateway | Watch → URLSession → Gateway |
+| 前提 | iPhoneが近く（BT圏内）+ ClawLink起動中 | WatchがGatewayと同一Wi-Fi |
+| 自宅 | ✅ | ✅（iPhoneなしでも動く） |
+| 外出先 | ✅ | ❌（Wi-Fiなし） |
+| Gateway公開 | 不要（LAN内でOK） | 不要（同一LAN） |
+| 実装難度 | 低 | 中 |
+
+#### 自動切替ロジック
+
+```swift
+if WCSession.default.isReachable {
+    // Option A: iPhone経由
+    WCSession.default.sendMessage(["text": transcribedText], ...)
+} else if watchIsOnSameNetworkAsGateway {
+    // Option B: Wi-Fi直接
+    URLSession.shared.dataTask(with: gatewayRequest)
+} else {
+    // 接続不可
+    showError("Gatewayに接続できません")
+}
+```
+
+#### 実装優先順位
+1. **Option A**（iPhone relay）→ 外出先もカバー、先に作りやすい。MVP
+2. **Option B**（Wi-Fi直接）→ 自宅での独立動作（iPhoneを別室に置いてても使える）。後から追加
+
+#### 音声会話フロー（UI = Watch完結）
 
 ```
-Apple Watch（WatchKit App）
-  ├─ マイク → SFSpeechRecognizer（音声→テキスト）
-  ├─ URLSession → POST /tools/invoke → Gateway → AI
-  └─ AI返答テキスト → AVSpeechSynthesizer（読み上げ）
-
-※ iPhoneが近くにあればWatchConnectivity経由でも可（フォールバック）
+Watch のマイク
+  └─ SFSpeechRecognizer（テキスト化）
+       └─ [Option A] WatchConnectivity → iPhone → POST /tools/invoke
+          [Option B] URLSession → POST /tools/invoke
+               └─ AI返答
+                    └─ AVSpeechSynthesizer（読み上げ）
 ```
 
 ### 実装アイデア（難易度別）
