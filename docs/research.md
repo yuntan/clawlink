@@ -19,13 +19,15 @@
 
 ### 重複する機能と差別化ポイント
 
-| 機能 | 重複？ | ClawLinkの差別化 |
-|------|--------|-----------------|
-| `location.get` | △ 重複 | 公式はフォアグラウンド必須。ClawLinkはバックグラウンドPushで継続送信できる |
-| カメラ | △ 重複 | 当面は実装しない（Phase 4以降） |
-| Canvas | ✗ 不要 | ClawLinkのスコープ外 |
-| Talk mode | ✗ 重複 | 実装しない（公式に任せる） |
-| Voice wake | ✗ 重複 | Apple Watch経由で代替（後述） |
+※ 公式と重複する機能は「やらない」ではなく「優先度を下げる」方針。
+
+| 機能 | 重複？ | ClawLinkの差別化・方針 |
+|------|--------|----------------------|
+| `location.get` | △ 重複 | 公式はフォアグラウンド必須。ClawLinkはバックグラウンドPushで継続送信できる。**優先度: 高** |
+| Talk mode | △ 重複 | **Apple Watch版として独自実装**（Watchだけで音声会話完結）。**優先度: 高** |
+| カメラ | △ 重複 | 公式と同等機能のため**優先度: 低** |
+| Canvas | △ 重複 | ClawLinkのスコープ外。**優先度: 最低** |
+| Voice wake | △ 重複 | Watch版クイックアクションで代替。**優先度: 低** |
 
 ### ClawLink独自の価値
 
@@ -43,61 +45,71 @@
 
 ## Apple Watch連携のアイデア
 
-### アーキテクチャ
+### 方針：Watchだけで音声会話を完結させる
+
+iPhone経由なしで Watch ↔ Gateway ↔ AI の往復を完結させる。
+Apple Watch（セルラーモデルまたはWi-Fi環境）はURLSessionで直接HTTP/WSに接続できる。
 
 ```
 Apple Watch（WatchKit App）
-  └─ 音声入力（dictation UI）
-  └─ WatchConnectivity
-        └─ iPhone (ClawLink)
-              └─ POST /tools/invoke → Gateway → AI
-              └─ AI返答 → Watch通知
+  ├─ マイク → SFSpeechRecognizer（音声→テキスト）
+  ├─ URLSession → POST /tools/invoke → Gateway → AI
+  └─ AI返答テキスト → AVSpeechSynthesizer（読み上げ）
+
+※ iPhoneが近くにあればWatchConnectivity経由でも可（フォールバック）
 ```
 
 ### 実装アイデア（難易度別）
 
-#### 🟢 比較的簡単（Phase 2〜3で実装可能）
+#### 🟢 比較的簡単
 
-**音声コマンド送信**
-- Watchのボタン長押し → `WKInterfaceController.presentTextInputController(withSuggestions:)` でdictation UI
-- テキスト結果 → WatchConnectivity → iPhone → POST /tools/invoke
-- AI返答をWatch通知（`UNUserNotificationCenter`）で受け取る
+**音声コマンド送信（dictation UI経由）**
+- Watchのボタン長押し → `presentTextInputController` でdictation UI
+- テキスト → Watch上でHTTP POST → Gateway → AIセッションにwake event注入
+- AI返答 → `AVSpeechSynthesizer` で読み上げ or Watch通知
 
 **クイックアクション**
-- 定型コマンドをリストから選ぶだけ
-  - 「今の気分を記録」「今日の歩数を送って」「今どこにいる？」
-- バッジタップでGatewayにコマンド送信
+- 定型コマンドボタン:「今日の歩数」「体調記録」「今どこ？」
+- タップ → POST /tools/invoke
 
 #### 🟡 中程度
 
-**コンプリケーション（文字盤ウィジェット）**
-- Gateway接続状態（Connected / Disconnected）
-- 最終データ送信時刻
-- 当日の歩数・心拍数をリアルタイム表示
+**マイク直接録音 → Watch上でSpeech Recognition**
+- `AVAudioEngine` + `SFSpeechRecognizer` で音声→テキストをWatch上で処理
+- dictation UIより自由度が高い（録音UIをカスタムできる）
+- watchOS 7以降でSFSpeechRecognizer利用可
 
-**HealthKitデータの直接取得**
-- Apple WatchはiPhoneより心拍測定の精度が高い
-- Watch → WatchConnectivity → iPhone → Gateway のパイプライン
+**Watch単体Talk mode（音声会話ループ）**
+- 録音 → テキスト化 → POST to Gateway → AI返答取得 → 読み上げ → 録音…
+- HTTPポーリング or SSE（Server-Sent Events）でAI返答を受け取る
+- システムTTS（AVSpeechSynthesizer）でOK。ElevenLabsは将来対応
 
-#### 🔴 難しい・将来
+**コンプリケーション（文字盤）**
+- 接続状態・最終送信時刻・当日歩数・心拍をリアルタイム表示
 
-**Watch上でのAI返答読み上げ**
-- `AVSpeechSynthesizer` でテキストを音声化
-- ElevenLabsは使えないのでシステムTTSになる
+#### 🔴 将来・難しい
+
+**WebSocket接続（Watch直接Node化）**
+- watchOSはURLSessionのWebSocketTaskをサポート（watchOS 6+）
+- Watchが直接NodeとしてGatewayに接続できる
+- バックグラウンドでのWS維持はwatchOSでも困難
+
+**AI返答のストリーミング読み上げ**
+- SSEでトークンを受け取りながら段階的に読み上げ
 
 **Siriショートカット連携**
-- 「Hey Siri、ClawLinkに送って」→ App Intent経由でGatewayに送信
-- iOS 16以降のApp Intentsフレームワーク
+- App Intentsで「Hey Siri → ClawLinkに送って」
 
 ### Apple Watch技術メモ
 
 | 項目 | 内容 |
 |------|------|
-| 音声入力 | `WKInterfaceController.presentTextInputController` (dictation) |
-| iPhone連携 | `WatchConnectivity` (`WCSession`) |
-| 通知 | `UNUserNotificationCenter`（Watch OSが自動中継） |
+| ネットワーク | `URLSession`でWi-Fi/LTE直接接続（watchOS 7+）。iPhoneなしでGatewayに接続可 |
+| 音声入力 | `presentTextInputController`（dictation）or `SFSpeechRecognizer`（カスタム） |
+| 音声出力 | `AVSpeechSynthesizer`（システムTTS）|
+| iPhone連携 | `WatchConnectivity`（オフライン時フォールバック） |
 | 文字盤 | `WidgetKit` + `CLKComplication` |
-| バックグラウンド | watchOSのBGタスクは非常に制限的。基本はiPhone側で処理 |
+| 制約 | バックグラウンド処理は非常に制限的。会話はフォアグラウンド前提 |
 
 ---
 
