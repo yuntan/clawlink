@@ -127,8 +127,58 @@ Authorization: Bearer <token>
 ### Service Workerの常時稼働問題（Manifest V3）
 
 Manifest V3のService WorkerはアイドルでSuspendされる。Relay中は以下で回避：
-- `chrome.alarms` で25秒毎にpingを発火してService Workerを起こす
-- または `chrome.offscreen` で永続的なオフスクリーンドキュメントを持ち、そちらでWS接続を維持
+- `chrome.offscreen` で永続的なオフスクリーンドキュメントを持ち、そちらでWS接続を維持（**採用**）
+- ~~`chrome.alarms` で25秒毎にpingを発火してService Workerを起こす~~
+
+---
+
+## Gateway WebSocket プロトコル（公式仕様）
+
+OpenClaw公式ドキュメント（`docs/gateway/protocol.md`）より。
+
+### フレーム形式
+
+```json
+// リクエスト
+{ "type": "req", "id": "<uuid>", "method": "<method>", "params": {} }
+
+// レスポンス
+{ "type": "res", "id": "<uuid>", "ok": true, "payload": {} }
+{ "type": "res", "id": "<uuid>", "ok": false, "error": { "code": "...", "message": "..." } }
+
+// イベント
+{ "type": "event", "event": "<event-name>", "payload": {} }
+```
+
+### 接続フロー
+
+1. WS接続確立
+2. Gateway → `{ type:"event", event:"connect.challenge", payload:{ nonce, ts } }`
+3. Client → `{ type:"req", id, method:"connect", params:{ minProtocol:3, maxProtocol:3, client:{id:"node-host", version, platform:"chrome", mode:"node"}, role:"node", caps, commands, auth:{ token } } }`
+4. Gateway → `{ type:"res", id, ok:true, payload:{ type:"hello-ok", protocol:3, ... } }`
+
+### Nodeコマンド受信・応答
+
+```json
+// Gateway → Node（event）
+{
+  "type": "event",
+  "event": "node.invoke.request",
+  "payload": { "id": "<id>", "nodeId": "<nodeId>", "command": "tabs.list", "paramsJSON": "{}" }
+}
+
+// Node → Gateway（req）
+{
+  "type": "req", "id": "<new-uuid>", "method": "node.invoke.result",
+  "params": { "id": "<同じid>", "nodeId": "<nodeId>", "ok": true, "payload": { ... } }
+}
+```
+
+### client.id の制約
+
+公式 enum: `"cli" | "webchat" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | ...`
+
+→ ClawLink Chrome拡張では **`"node-host"`** を使用する。
 
 ---
 
