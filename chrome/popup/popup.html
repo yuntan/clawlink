@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClawLink</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ClawLink</h1>
+      <span id="status-badge" class="badge badge-disconnected">未接続</span>
+    </header>
+
+    <section class="section">
+      <h2>接続設定</h2>
+      <div class="field">
+        <label for="gateway-url">Gateway URL</label>
+        <input type="text" id="gateway-url" placeholder="http://192.168.1.10:18789">
+      </div>
+      <div class="field">
+        <label for="gateway-token">Token（任意）</label>
+        <input type="text" id="gateway-token" placeholder="Bearer token">
+      </div>
+      <button id="save-btn" class="btn btn-primary">保存</button>
+      <button id="test-btn" class="btn btn-secondary">接続テスト</button>
+      <p id="test-result" class="test-result"></p>
+    </section>
+
+    <section class="section">
+      <h2>Push送信</h2>
+      <p class="meta">最終送信: <span id="last-push">—</span></p>
+      <button id="push-now-btn" class="btn btn-secondary">今すぐ送信</button>
+    </section>
+
+    <section class="section">
+      <h2>Relay モード</h2>
+      <p class="meta relay-desc" id="relay-desc">AIがこのタブの内容をリアルタイムで参照できます</p>
+      <div class="relay-row">
+        <label class="toggle-label">
+          <input type="checkbox" id="relay-toggle">
+          <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+          </span>
+          <span id="relay-label">OFF</span>
+        </label>
+      </div>
+      <p id="relay-status" class="relay-status"></p>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
