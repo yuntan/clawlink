@@ -12,7 +12,7 @@ iPhoneとChromeをOpenClawに接続し、センサーデータ・ブラウザ情
 
 ## ドキュメント
 
-- [iOS仕様書](./docs/spec.md)
+- [iOS仕様書](./docs/ios-spec.md)
 - [Chrome拡張仕様書](./docs/chrome-spec.md)
 - [調査項目](./docs/todo.md)
 - [リサーチメモ（公式比較・Watch連携）](./docs/research.md)
